@@ -12,6 +12,7 @@ from .. import llm, stt
 from ..log import logger
 from ..types import NOT_GIVEN, NotGivenOr
 from .agent import ModelSettings
+from .speech_handle import SpeechHandle
 
 # TODO(theomonnom): can those types be simplified?
 STTNode = Callable[
@@ -22,7 +23,7 @@ STTNode = Callable[
     ],
 ]
 LLMNode = Callable[
-    [llm.ChatContext, list[llm.FunctionTool], ModelSettings],
+    [llm.ChatContext, list[llm.FunctionTool], ModelSettings, SpeechHandle],
     Union[
         Optional[Union[AsyncIterable[llm.ChatChunk], AsyncIterable[str], str]],
         Awaitable[Optional[Union[AsyncIterable[llm.ChatChunk], AsyncIterable[str], str]]],

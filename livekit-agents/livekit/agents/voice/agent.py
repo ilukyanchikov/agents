@@ -12,6 +12,7 @@ from ..llm import ChatContext, FunctionTool, ToolError, find_function_tools
 from ..llm.chat_context import _ReadOnlyChatContext
 from ..log import logger
 from ..types import NOT_GIVEN, NotGivenOr
+from .speech_handle import SpeechHandle
 
 if TYPE_CHECKING:
     from .agent_activity import AgentActivity
@@ -316,6 +317,7 @@ class Agent:
         chat_ctx: llm.ChatContext,
         tools: list[FunctionTool],
         model_settings: ModelSettings,
+        speech: SpeechHandle
     ) -> AsyncIterable[llm.ChatChunk] | None | AsyncIterable[str] | None | str | None:
         """
         A node in the processing pipeline that processes text generation with an LLM.
@@ -344,7 +346,7 @@ class Agent:
         )
 
         tool_choice = model_settings.tool_choice if model_settings else NOT_GIVEN
-
+        speech.mark_as_ready()
         async with activity.llm.chat(
             chat_ctx=chat_ctx, tools=tools, tool_choice=tool_choice
         ) as stream:

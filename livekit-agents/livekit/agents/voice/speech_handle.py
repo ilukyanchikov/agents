@@ -30,6 +30,8 @@ class SpeechHandle:
         self._authorize_fut = asyncio.Future()
         self._playout_done_fut = asyncio.Future()
         self._parent = parent
+        self._ready = False
+        self._on_ready: Callable[[], None] | None = None
 
     @staticmethod
     def create(
@@ -110,3 +112,16 @@ class SpeechHandle:
         with contextlib.suppress(asyncio.InvalidStateError):
             # will raise InvalidStateError if the future is already done (interrupted)
             self._playout_done_fut.set_result(None)
+
+    def is_ready(self) -> bool:
+        return self._ready
+
+    def mark_as_ready(self) -> None:
+        if self._ready:
+            return
+        self._ready = True
+        if self._on_ready is not None:
+            self._on_ready()
+
+    def set_ready_callback(self, callback: Callable[[], None]) -> None:
+        self._on_ready = callback

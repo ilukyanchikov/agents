@@ -67,6 +67,7 @@ class AgentActivity(RecognitionHooks):
 
         self._current_speech: SpeechHandle | None = None
         self._speech_q: list[tuple[int, float, SpeechHandle]] = []
+        self._pending_speech_q: list[tuple[int, float, SpeechHandle]] = []
 
         # fired when a speech_task finishes or when a new speech_handle is scheduled
         # this is used to wake up the main task when the scheduling state changes
@@ -503,6 +504,10 @@ class AgentActivity(RecognitionHooks):
             _, _, speech = speech
             speech.interrupt()
 
+        for speech in self._pending_speech_q:
+            _, _, speech = speech
+            speech.interrupt()
+
         if self._rt_session is not None:
             self._rt_session.interrupt()
 
@@ -520,8 +525,24 @@ class AgentActivity(RecognitionHooks):
         if self.draining and not bypass_draining:
             raise RuntimeError("cannot schedule new speech, the agent is draining")
 
-        heapq.heappush(self._speech_q, (priority, time.time(), speech))
-        self._wake_up_main_task()
+        entry = (priority, time.time(), speech)
+
+        if speech.is_ready():
+            heapq.heappush(self._speech_q, entry)
+            self._wake_up_main_task()
+        else:
+            self._pending_speech_q.append(entry)
+
+            def make_ready():
+                if entry in self._pending_speech_q:
+                    self._pending_speech_q.remove(entry)
+                    heapq.heappush(self._speech_q, entry)
+                    self._wake_up_main_task()
+
+            speech.set_ready_callback(make_ready)
+
+        #heapq.heappush(self._pending_speech_q, (priority, time.time(), speech))
+        # self._wake_up_main_task()
 
     @utils.log_exceptions(logger=logger)
     async def _main_task(self) -> None:
@@ -866,6 +887,7 @@ class AgentActivity(RecognitionHooks):
             chat_ctx=chat_ctx,
             tool_ctx=tool_ctx,
             model_settings=model_settings,
+            speech_handle=speech_handle
         )
         tasks.append(llm_task)
         tts_text_input, llm_output = utils.aio.itertools.tee(llm_gen_data.text_ch)
