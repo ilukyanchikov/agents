@@ -390,6 +390,7 @@ class AgentActivity(RecognitionHooks):
         audio: NotGivenOr[AsyncIterable[rtc.AudioFrame]] = NOT_GIVEN,
         allow_interruptions: NotGivenOr[bool] = NOT_GIVEN,
         add_to_chat_ctx: bool = True,
+        is_ready: bool = False
     ) -> SpeechHandle:
         if not is_given(audio) and not self.tts:
             raise RuntimeError("trying to generate speech from text without a TTS model")
@@ -410,6 +411,8 @@ class AgentActivity(RecognitionHooks):
             if is_given(allow_interruptions)
             else self.allow_interruptions
         )
+        if is_ready:
+            handle.mark_as_ready()
         self._session.emit(
             "speech_created",
             SpeechCreatedEvent(speech_handle=handle, user_initiated=True, source="say"),

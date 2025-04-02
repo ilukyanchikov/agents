@@ -298,6 +298,7 @@ class AgentSession(rtc.EventEmitter[EventTypes], Generic[Userdata_T]):
         audio: NotGivenOr[AsyncIterable[rtc.AudioFrame]] = NOT_GIVEN,
         allow_interruptions: NotGivenOr[bool] = NOT_GIVEN,
         add_to_chat_ctx: bool = True,
+        is_ready: bool = False
     ) -> SpeechHandle:
         if self._activity is None:
             raise RuntimeError("AgentSession isn't running")
@@ -311,6 +312,7 @@ class AgentSession(rtc.EventEmitter[EventTypes], Generic[Userdata_T]):
                 audio=audio,
                 allow_interruptions=allow_interruptions,
                 add_to_chat_ctx=add_to_chat_ctx,
+                is_ready=is_ready
             )
 
         return self._activity.say(
@@ -318,6 +320,7 @@ class AgentSession(rtc.EventEmitter[EventTypes], Generic[Userdata_T]):
             audio=audio,
             allow_interruptions=allow_interruptions,
             add_to_chat_ctx=add_to_chat_ctx,
+            is_ready=is_ready
         )
 
     def generate_reply(
