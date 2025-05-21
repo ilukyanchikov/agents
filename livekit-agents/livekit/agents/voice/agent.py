@@ -353,6 +353,8 @@ class Agent:
             async for chunk in stream:
                 yield chunk
 
+        activity._current_task = None
+
     async def transcription_node(
         self, text: AsyncIterable[str], model_settings: ModelSettings
     ) -> AsyncIterable[str]:

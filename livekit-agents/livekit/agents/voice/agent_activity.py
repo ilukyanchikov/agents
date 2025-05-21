@@ -66,6 +66,7 @@ class AgentActivity(RecognitionHooks):
         self._draining = False
 
         self._current_speech: SpeechHandle | None = None
+        self._current_task: SpeechHandle | None = None
         self._speech_q: list[tuple[int, float, SpeechHandle]] = []
         self._pending_speech_q: list[tuple[int, float, SpeechHandle]] = []
 
@@ -497,6 +498,7 @@ class AgentActivity(RecognitionHooks):
             )
 
         self._schedule_speech(handle, SpeechHandle.SPEECH_PRIORITY_NORMAL)
+        self._current_task = handle
         return handle
 
     def interrupt(self) -> None:
@@ -650,6 +652,8 @@ class AgentActivity(RecognitionHooks):
                     speech_id=self._current_speech.id,
                 )
                 self._current_speech.interrupt()
+                if self._current_task:
+                    self._current_task.interrupt()
 
     def on_interim_transcript(self, ev: stt.SpeechEvent) -> None:
         if isinstance(self.llm, llm.RealtimeModel) and self.llm.capabilities.user_transcription:
