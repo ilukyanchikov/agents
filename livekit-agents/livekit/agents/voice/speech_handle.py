@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 from typing import Callable
 
+from examples.full_examples.restaurant_agent.restaurant_agent import logger
 from .. import utils
 
 
@@ -74,8 +75,12 @@ class SpeechHandle:
         return self._playout_done_fut.done()
 
     def interrupt(self) -> None:
+        logger.info(f"interrupt speech {self.id}")
         if not self._allow_interruptions:
             raise RuntimeError("This generation handle does not allow interruptions")
+
+        if self.parent:
+            self.parent.interrupt()
 
         if self.done():
             return

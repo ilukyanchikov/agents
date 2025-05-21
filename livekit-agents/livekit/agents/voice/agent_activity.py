@@ -496,7 +496,7 @@ class AgentActivity(RecognitionHooks):
                 owned_speech_handle=handle,
                 name="AgentActivity.pipeline_reply",
             )
-
+        logger.info(f"User input {user_input}. SpeechHandle {handle.id}")
         self._schedule_speech(handle, SpeechHandle.SPEECH_PRIORITY_NORMAL)
         self._current_task = handle
         return handle
