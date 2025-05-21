@@ -4,7 +4,7 @@ import asyncio
 import contextlib
 from typing import Callable
 
-from examples.full_examples.restaurant_agent.restaurant_agent import logger
+from ..log import logger
 from .. import utils
 
 
