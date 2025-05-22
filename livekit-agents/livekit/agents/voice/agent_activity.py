@@ -441,6 +441,9 @@ class AgentActivity(RecognitionHooks):
         tool_choice: NotGivenOr[llm.ToolChoice] = NOT_GIVEN,
         allow_interruptions: NotGivenOr[bool] = NOT_GIVEN,
     ) -> SpeechHandle:
+        if self._current_task:
+            self._current_task.interrupt()
+            logger.info(f'Interrupt current task {self._current_task.id} by new user input {user_input}')
         if self._current_speech is not None and not self._current_speech.interrupted:
             raise RuntimeError("another reply is already in progress")
 
@@ -652,8 +655,6 @@ class AgentActivity(RecognitionHooks):
                     speech_id=self._current_speech.id,
                 )
                 self._current_speech.interrupt()
-                if self._current_task:
-                    self._current_task.interrupt()
 
     def on_interim_transcript(self, ev: stt.SpeechEvent) -> None:
         if isinstance(self.llm, llm.RealtimeModel) and self.llm.capabilities.user_transcription:
