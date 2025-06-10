@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 from typing import Callable
 
+from ..log import logger
 from .. import utils
 
 
@@ -30,6 +31,8 @@ class SpeechHandle:
         self._authorize_fut = asyncio.Future()
         self._playout_done_fut = asyncio.Future()
         self._parent = parent
+        self._ready = False
+        self._on_ready: Callable[[], None] | None = None
 
     @staticmethod
     def create(
@@ -72,8 +75,12 @@ class SpeechHandle:
         return self._playout_done_fut.done()
 
     def interrupt(self) -> None:
+        logger.info(f"interrupt speech {self.id}")
         if not self._allow_interruptions:
             raise RuntimeError("This generation handle does not allow interruptions")
+
+        if self.parent:
+            self.parent.interrupt()
 
         if self.done():
             return
@@ -110,3 +117,16 @@ class SpeechHandle:
         with contextlib.suppress(asyncio.InvalidStateError):
             # will raise InvalidStateError if the future is already done (interrupted)
             self._playout_done_fut.set_result(None)
+
+    def is_ready(self) -> bool:
+        return self._ready
+
+    def mark_as_ready(self) -> None:
+        if self._ready:
+            return
+        self._ready = True
+        if self._on_ready is not None:
+            self._on_ready()
+
+    def set_ready_callback(self, callback: Callable[[], None]) -> None:
+        self._on_ready = callback
