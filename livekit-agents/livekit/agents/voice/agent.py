@@ -12,6 +12,7 @@ from ..llm import ChatContext, FunctionTool, RawFunctionTool, ToolError, find_fu
 from ..llm.chat_context import _ReadOnlyChatContext
 from ..log import logger
 from ..types import NOT_GIVEN, NotGivenOr
+from .speech_handle import SpeechHandle
 
 if TYPE_CHECKING:
     from ..llm import mcp
@@ -203,6 +204,7 @@ class Agent:
         chat_ctx: llm.ChatContext,
         tools: list[FunctionTool | RawFunctionTool],
         model_settings: ModelSettings,
+        speech: SpeechHandle
     ) -> (
         AsyncIterable[llm.ChatChunk | str]
         | Coroutine[Any, Any, AsyncIterable[llm.ChatChunk | str]]
@@ -338,6 +340,7 @@ class Agent:
             chat_ctx: llm.ChatContext,
             tools: list[FunctionTool | RawFunctionTool],
             model_settings: ModelSettings,
+            speech: SpeechHandle
         ) -> AsyncGenerator[llm.ChatChunk | str, None]:
             """Default implementation for `Agent.llm_node`"""
             activity = agent._get_activity_or_raise()
@@ -350,11 +353,13 @@ class Agent:
             activity_llm = activity.llm
 
             conn_options = activity.session.conn_options.llm_conn_options
+            speech.mark_as_ready()
             async with activity_llm.chat(
                 chat_ctx=chat_ctx, tools=tools, tool_choice=tool_choice, conn_options=conn_options
             ) as stream:
                 async for chunk in stream:
                     yield chunk
+            activity._current_task = None
 
         @staticmethod
         async def tts_node(

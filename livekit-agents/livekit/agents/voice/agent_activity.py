@@ -73,7 +73,9 @@ class AgentActivity(RecognitionHooks):
         self._draining = False
 
         self._current_speech: SpeechHandle | None = None
+        self._current_task: SpeechHandle | None = None
         self._speech_q: list[tuple[int, float, SpeechHandle]] = []
+        self._pending_speech_q: list[tuple[int, float, SpeechHandle]] = []
 
         # fired when a speech_task finishes or when a new speech_handle is scheduled
         # this is used to wake up the main task when the scheduling state changes
@@ -492,6 +494,7 @@ class AgentActivity(RecognitionHooks):
         audio: NotGivenOr[AsyncIterable[rtc.AudioFrame]] = NOT_GIVEN,
         allow_interruptions: NotGivenOr[bool] = NOT_GIVEN,
         add_to_chat_ctx: bool = True,
+        is_ready: bool = False
     ) -> SpeechHandle:
         if (
             not is_given(audio)
@@ -517,6 +520,8 @@ class AgentActivity(RecognitionHooks):
             if is_given(allow_interruptions)
             else self.allow_interruptions
         )
+        if is_ready:
+            handle.mark_as_ready()
         self._session.emit(
             "speech_created",
             SpeechCreatedEvent(speech_handle=handle, user_initiated=True, source="say"),
@@ -546,6 +551,9 @@ class AgentActivity(RecognitionHooks):
         tool_choice: NotGivenOr[llm.ToolChoice] = NOT_GIVEN,
         allow_interruptions: NotGivenOr[bool] = NOT_GIVEN,
     ) -> SpeechHandle:
+        if self._current_task:
+            self._current_task.interrupt()
+            logger.info(f'Interrupt current task {self._current_task.id} by new user input {user_input}')
         if (
             isinstance(self.llm, llm.RealtimeModel)
             and self.llm.capabilities.turn_detection
@@ -623,7 +631,9 @@ class AgentActivity(RecognitionHooks):
             )
             task.add_done_callback(self._on_pipeline_reply_done)
 
+        logger.info(f"User input {user_message}. SpeechHandle {handle.id}")
         self._schedule_speech(handle, SpeechHandle.SPEECH_PRIORITY_NORMAL)
+        self._current_task = handle
         return handle
 
     def interrupt(self) -> asyncio.Future[None]:
@@ -640,6 +650,9 @@ class AgentActivity(RecognitionHooks):
             current_speech = current_speech.interrupt()
 
         for _, _, speech in self._speech_q:
+            speech.interrupt()
+
+        for _, _, speech in self._pending_speech_q:
             speech.interrupt()
 
         if self._rt_session is not None:
@@ -689,8 +702,24 @@ class AgentActivity(RecognitionHooks):
             raise RuntimeError("cannot schedule new speech, the agent is draining")
 
         # Negate the priority to make it a max heap
-        heapq.heappush(self._speech_q, (-priority, time.monotonic_ns(), speech))
-        self._wake_up_main_task()
+        entry = (-priority, time.time(), speech)
+
+        if speech.is_ready():
+            heapq.heappush(self._speech_q, entry)
+            self._wake_up_main_task()
+        else:
+            self._pending_speech_q.append(entry)
+
+            def make_ready():
+                if entry in self._pending_speech_q:
+                    self._pending_speech_q.remove(entry)
+                    heapq.heappush(self._speech_q, entry)
+                    self._wake_up_main_task()
+
+            speech.set_ready_callback(make_ready)
+
+        # heapq.heappush(self._speech_q, (-priority, time.monotonic_ns(), speech))
+        # self._wake_up_main_task()
 
     @utils.log_exceptions(logger=logger)
     async def _main_task(self) -> None:
@@ -1177,6 +1206,7 @@ class AgentActivity(RecognitionHooks):
             chat_ctx=chat_ctx,
             tool_ctx=tool_ctx,
             model_settings=model_settings,
+            speech_handle=speech_handle
         )
         tasks.append(llm_task)
         tts_text_input, llm_output = utils.aio.itertools.tee(llm_gen_data.text_ch)

@@ -54,6 +54,7 @@ def perform_llm_inference(
     chat_ctx: ChatContext,
     tool_ctx: ToolContext,
     model_settings: ModelSettings,
+    speech_handle: SpeechHandle
 ) -> tuple[asyncio.Task[bool], _LLMGenerationData]:
     text_ch = aio.Chan[str]()
     function_ch = aio.Chan[llm.FunctionCall]()
@@ -67,6 +68,7 @@ def perform_llm_inference(
             chat_ctx,
             tools,
             model_settings,
+            speech_handle
         )
         if asyncio.iscoroutine(llm_node):
             llm_node = await llm_node

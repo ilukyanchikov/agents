@@ -5,6 +5,7 @@ import contextlib
 from collections.abc import Generator
 from typing import Any, Callable
 
+from ..log import logger
 from .. import llm, utils
 
 
@@ -31,6 +32,8 @@ class SpeechHandle:
         self._authorize_fut = asyncio.Future[None]()
         self._playout_done_fut = asyncio.Future[None]()
         self._parent = parent
+        self._ready = False
+        self._on_ready: Callable[[], None] | None = None
 
         self._chat_message: llm.ChatMessage | None = None
 
@@ -94,8 +97,12 @@ class SpeechHandle:
         Returns:
             SpeechHandle: The same speech handle that was interrupted.
         """
+        logger.info(f"interrupt speech {self.id}")
         if not self._allow_interruptions:
             raise RuntimeError("This generation handle does not allow interruptions")
+
+        if self.parent:
+            self.parent.interrupt()
 
         if self.done():
             return self
@@ -144,3 +151,16 @@ class SpeechHandle:
             raise RuntimeError("Chat message already set")
 
         self._chat_message = chat_message
+
+    def is_ready(self) -> bool:
+        return self._ready
+
+    def mark_as_ready(self) -> None:
+        if self._ready:
+            return
+        self._ready = True
+        if self._on_ready is not None:
+            self._on_ready()
+
+    def set_ready_callback(self, callback: Callable[[], None]) -> None:
+        self._on_ready = callback
