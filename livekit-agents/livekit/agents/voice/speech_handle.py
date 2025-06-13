@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import time
 from collections.abc import Generator
+from os import times
 from typing import Any, Callable
 
 from ..log import logger
@@ -34,6 +36,7 @@ class SpeechHandle:
         self._parent = parent
         self._ready = False
         self._on_ready: Callable[[], None] | None = None
+        self._start_time: int | None = None
 
         self._chat_message: llm.ChatMessage | None = None
 
@@ -53,6 +56,10 @@ class SpeechHandle:
     @property
     def id(self) -> str:
         return self._id
+
+    @property
+    def start_time(self) -> int:
+        return self._start_time
 
     @property
     def step_index(self) -> int:
@@ -84,6 +91,9 @@ class SpeechHandle:
         This happens when a tool call is made, a new SpeechHandle will be created for the tool response.
         """  # noqa: E501
         return self._parent
+
+    def set_start_time(self):
+        self._start_time = time.time()
 
     def done(self) -> bool:
         return self._playout_done_fut.done()

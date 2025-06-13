@@ -553,7 +553,7 @@ class AgentActivity(RecognitionHooks):
     ) -> SpeechHandle:
         if self._current_task:
             self._current_task.interrupt()
-            logger.info(f'Interrupt current task {self._current_task.id} by new user input {user_input}')
+            logger.info(f'Interrupt current task {self._current_task.id} by new user input {user_message}')
         if (
             isinstance(self.llm, llm.RealtimeModel)
             and self.llm.capabilities.turn_detection
@@ -1103,6 +1103,8 @@ class AgentActivity(RecognitionHooks):
 
         def _on_first_frame(_: asyncio.Future[None]) -> None:
             self._session._update_agent_state("speaking")
+            speech_handle.set_start_time()
+
 
         if audio_output is None:
             # update the agent state based on text if no audio output
@@ -1150,6 +1152,7 @@ class AgentActivity(RecognitionHooks):
                 role="assistant",
                 content=text_out.text if text_out else "",
                 interrupted=speech_handle.interrupted,
+                created_at=speech_handle.start_time
             )
             speech_handle._set_chat_message(msg)
             self._session._conversation_item_added(msg)
