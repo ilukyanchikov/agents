@@ -87,6 +87,9 @@ class RoomInputOptions:
     close_on_disconnect: bool = True
     """Close the AgentSession if the linked participant disconnects with reasons in
     CLIENT_INITIATED, ROOM_DELETED, or USER_REJECTED."""
+    disconnect_grace_period: float = 15.0
+    """Time (in seconds) to wait for the participant to reconnect before closing the session.
+    Used only if `close_on_disconnect` is True."""
 
 
 @dataclass
@@ -408,28 +411,40 @@ class RoomIO:
         self._participant_available_fut = asyncio.Future[rtc.RemoteParticipant]()
 
         if (
-            self._input_options.close_on_disconnect
-            and participant.disconnect_reason in DEFAULT_CLOSE_ON_DISCONNECT_REASONS
-            and not self._close_session_atask
+                self._input_options.close_on_disconnect
+                and participant.disconnect_reason in DEFAULT_CLOSE_ON_DISCONNECT_REASONS
+                and not self._close_session_atask
         ):
+
+            async def _delayed_close_after_grace_period() -> None:
+                logger.debug(
+                    f"Participant disconnected. Waiting {self._input_options.disconnect_grace_period} seconds for reconnection before closing session...",
+                    extra={
+                        "participant": participant.identity,
+                        "reason": rtc.DisconnectReason.Name(participant.disconnect_reason),
+                    },
+                )
+
+                try:
+                    await asyncio.wait_for(self._wait_for_participant_reconnect(), timeout=self._input_options.disconnect_grace_period)
+                    logger.info(
+                        "Participant reconnected within grace period. Session will remain active.",
+                        extra={"participant": participant.identity},
+                    )
+                except asyncio.TimeoutError:
+                    logger.debug("No reconnection. Proceeding to close agent session.")
+                    await self._agent_session._aclose_impl(
+                        reason=CloseReason.PARTICIPANT_DISCONNECTED
+                    )
 
             def _on_closed(_: asyncio.Task[None]) -> None:
                 self._close_session_atask = None
 
-                if self._close_session_atask is not None:
-                    return
-
-            logger.debug(
-                "closing agent session due to participant disconnect",
-                extra={
-                    "participant": participant.identity,
-                    "reason": rtc.DisconnectReason.Name(participant.disconnect_reason),
-                },
-            )
-            self._close_session_atask = asyncio.create_task(
-                self._agent_session._aclose_impl(reason=CloseReason.PARTICIPANT_DISCONNECTED)
-            )
+            self._close_session_atask = asyncio.create_task(_delayed_close_after_grace_period())
             self._close_session_atask.add_done_callback(_on_closed)
+
+    async def _wait_for_participant_reconnect(self) -> None:
+        await self._participant_available_fut
 
     def _on_user_input_transcribed(self, ev: UserInputTranscribedEvent) -> None:
         if self._user_transcript_atask:
