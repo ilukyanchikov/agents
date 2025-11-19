@@ -1048,7 +1048,7 @@ class AgentActivity(RecognitionHooks):
     # endregion
 
     def _on_pipeline_reply_done(self, _: asyncio.Task[None]) -> None:
-        if not self._speech_q and (not self._current_speech or self._current_speech.done()):
+        if not self._speech_q and not self._current_task and (not self._current_speech or self._current_speech.done()):
             self._session._update_agent_state("listening")
 
     @utils.log_exceptions(logger=logger)
